@@ -1,6 +1,6 @@
 package zse.softease.agente_pmei.service;
 
-public interface PrintService {
+public interface ExecutorImpressaoService {
 
 	public void printTest();
 }
