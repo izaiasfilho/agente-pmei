@@ -4,25 +4,31 @@ package zse.softease.agente_pmei.scheduler;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import zse.softease.agente_pmei.config.ConfiguracaoAgente;
 import zse.softease.agente_pmei.service.OrquestradorImpressaoService;
 
 @Component
 public class ImpressaoScheduler {
 
     private final OrquestradorImpressaoService orquestradorImpressaoService;
+    private final ConfiguracaoAgente  configuracaoAgente;
 
-    public ImpressaoScheduler(OrquestradorImpressaoService orquestradorImpressaoService) {
+    public ImpressaoScheduler(OrquestradorImpressaoService orquestradorImpressaoService,
+    		ConfiguracaoAgente configuracaoAgente) {
         this.orquestradorImpressaoService = orquestradorImpressaoService;
+        this.configuracaoAgente = configuracaoAgente;
     }
 
-    @Scheduled(fixedDelayString = "${agent.intervalo-ms:1000}")
+    @Scheduled(fixedDelay = 1000)
     public void executar() {
 
-        try {
-        	orquestradorImpressaoService.executarCiclo();
+    	  int intervalo = configuracaoAgente.getIntervaloMs();
 
-        } catch (Exception e) {
-            System.err.println("[AGENTE] erro: " + e.getMessage());
-        }
+    	    try {
+    	        orquestradorImpressaoService.executarCiclo();
+    	        Thread.sleep(intervalo);
+    	    } catch (Exception e) {
+    	        System.err.println("[AGENTE] erro: " + e.getMessage());
+    	    }
     }
 }
