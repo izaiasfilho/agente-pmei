@@ -1,6 +1,5 @@
 package zse.softease.agente_pmei.db;
 
-
 import jakarta.annotation.PostConstruct;
 import org.springframework.stereotype.Component;
 
@@ -21,30 +20,37 @@ public class AgentDatabaseInitializer {
         try {
             Path dbPath = getDatabasePath();
 
-            if (!Files.exists(dbPath)) {
-                criarBanco(dbPath);
-                criarEstrutura(dbPath);
-                inserirDadosIniciais(dbPath);
-                System.out.println("[AGENTE] Banco SQLite criado com sucesso");
-            } else {
-                System.out.println("[AGENTE] Banco SQLite já existe");
-            }
+            criarBancoSeNaoExistir(dbPath);
+            criarEstrutura(dbPath);
+            inserirDefaultsSeNecessario(dbPath);
+
+            System.out.println("[AGENTE] Banco SQLite pronto em: " + dbPath.toAbsolutePath());
 
         } catch (Exception e) {
             throw new RuntimeException("Erro ao inicializar banco do agente", e);
         }
     }
 
+    // ================= PATH =================
+
     private Path getDatabasePath() {
         return Paths.get(System.getProperty("user.dir")).resolve(DB_NAME);
     }
 
-    private void criarBanco(Path dbPath) throws Exception {
+    // ================= BANCO =================
+
+    private void criarBancoSeNaoExistir(Path dbPath) throws Exception {
+        if (!Files.exists(dbPath)) {
+            Files.createFile(dbPath);
+        }
+
         String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
-        try (Connection conn = DriverManager.getConnection(url)) {
-            // apenas cria o arquivo
+        try (Connection ignored = DriverManager.getConnection(url)) {
+            // garante criação
         }
     }
+
+    // ================= ESTRUTURA =================
 
     private void criarEstrutura(Path dbPath) throws Exception {
         String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
@@ -60,24 +66,26 @@ public class AgentDatabaseInitializer {
         }
     }
 
-    private void inserirDadosIniciais(Path dbPath) throws Exception {
+    // ================= DEFAULTS =================
+
+    private void inserirDefaultsSeNecessario(Path dbPath) throws Exception {
         String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
 
         try (Connection conn = DriverManager.getConnection(url);
              Statement stmt = conn.createStatement()) {
 
             stmt.execute("""
-                INSERT INTO agent_estado (id, status)
+                INSERT OR IGNORE INTO agent_estado (id, status)
                 VALUES (1, 'PARADO');
             """);
 
             stmt.execute("""
-                INSERT INTO agent_atividade (id)
+                INSERT OR IGNORE INTO agent_atividade (id)
                 VALUES (1);
             """);
 
             stmt.execute("""
-                INSERT INTO agent_config (chave, valor) VALUES
+                INSERT OR IGNORE INTO agent_config (chave, valor) VALUES
                 ('apiBaseUrl', 'http://127.0.0.1:8080/posmei-api/api/posmei/impressao'),
                 ('idCaixa', ''),
                 ('chaveAcesso', ''),
@@ -138,4 +146,3 @@ public class AgentDatabaseInitializer {
         );
     """;
 }
-

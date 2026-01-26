@@ -4,6 +4,7 @@ import java.util.Base64;
 
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import zse.softease.agente_pmei.client.ImpressaoApiClientBack;
 import zse.softease.agente_pmei.config.ConfiguracaoAgente;
 import zse.softease.agente_pmei.dto.ProximoJobResponse;
@@ -15,9 +16,10 @@ import zse.softease.agente_pmei.service.OrquestradorImpressaoService;
 @Service
 public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoService {
 
-    private final ImpressaoApiClientBack impressaoApiClientBack;
+    private ImpressaoApiClientBack impressaoApiClientBack;
     private final MotorImpressao motorImpressao;
     private final ConfiguracaoAgente configuracaoAgente;
+
 
     public OrquestradorImpressaoServiceImp(
             ConfiguracaoAgente configuracaoAgente,
@@ -25,7 +27,13 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
     ) {
         this.configuracaoAgente = configuracaoAgente;
         this.motorImpressao = motorImpressao;
-        this.impressaoApiClientBack = new ImpressaoApiClientBack(configuracaoAgente.getApiBaseUrl());
+    }
+   
+    @PostConstruct
+    public void init() {
+        String baseUrl = configuracaoAgente.getApiBaseUrl();
+        this.impressaoApiClientBack =
+                new ImpressaoApiClientBack(baseUrl);
     }
 
     @Override
