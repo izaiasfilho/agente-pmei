@@ -66,7 +66,7 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
             	                        e.getMessage()
             	                );
             	            }
-            logService.info("Ciclo executado com sucesso");
+            
 
         } catch (Exception e) {
         	 logService.info("[AGENTE] erro:" + e.getMessage());
