@@ -9,6 +9,7 @@ import zse.softease.agente_pmei.client.ImpressaoApiClientBack;
 import zse.softease.agente_pmei.config.ConfiguracaoAgente;
 import zse.softease.agente_pmei.dto.ProximoJobResponse;
 import zse.softease.agente_pmei.printer.MotorImpressao;
+import zse.softease.agente_pmei.service.LogService;
 import zse.softease.agente_pmei.service.OrquestradorImpressaoService;
 
 
@@ -19,14 +20,17 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
     private ImpressaoApiClientBack impressaoApiClientBack;
     private final MotorImpressao motorImpressao;
     private final ConfiguracaoAgente configuracaoAgente;
+    private final LogService logService;
 
 
     public OrquestradorImpressaoServiceImp(
             ConfiguracaoAgente configuracaoAgente,
-            MotorImpressao motorImpressao
+            MotorImpressao motorImpressao,
+            LogService logService
     ) {
         this.configuracaoAgente = configuracaoAgente;
         this.motorImpressao = motorImpressao;
+        this.logService = logService;
     }
    
     @PostConstruct
@@ -62,7 +66,10 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
             	                        e.getMessage()
             	                );
             	            }
+            logService.info("Ciclo executado com sucesso");
+
         } catch (Exception e) {
+        	 logService.info("[AGENTE] erro:" + e.getMessage());
             System.err.println("[AGENTE] erro polling: " + e.getMessage());
         }
     }

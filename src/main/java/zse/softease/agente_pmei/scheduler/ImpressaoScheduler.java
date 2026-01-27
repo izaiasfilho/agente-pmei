@@ -36,8 +36,6 @@ public class ImpressaoScheduler {
 
             orquestradorImpressaoService.executarCiclo();
 
-           logService.info("Ciclo executado com sucesso");
-
             Thread.sleep(configuracaoAgente.getIntervaloMs());
 
         } catch (Exception e) {
