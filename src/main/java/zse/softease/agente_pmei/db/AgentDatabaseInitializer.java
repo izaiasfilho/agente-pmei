@@ -1,40 +1,32 @@
 package zse.softease.agente_pmei.db;
 
-import jakarta.annotation.PostConstruct;
+import org.springframework.boot.ApplicationArguments;
+import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
 
 @Component
-public class AgentDatabaseInitializer {
+public class AgentDatabaseInitializer implements ApplicationRunner {
 
-    private static final String DB_NAME = "agent.db";
-
-    @PostConstruct
-    public void init() {
+    @Override
+    public void run(ApplicationArguments args) {
         try {
-            Path dbPath = getDatabasePath();
+            Path dbPath = AgentDatabase.path();
 
             criarBancoSeNaoExistir(dbPath);
-            criarEstrutura(dbPath);
-            inserirDefaultsSeNecessario(dbPath);
+            criarEstrutura();
+            inserirDefaultsSeNecessario();
 
             System.out.println("[AGENTE] Banco SQLite pronto em: " + dbPath.toAbsolutePath());
 
         } catch (Exception e) {
             throw new RuntimeException("Erro ao inicializar banco do agente", e);
         }
-    }
-
-    // ================= PATH =================
-
-    private Path getDatabasePath() {
-        return Paths.get(System.getProperty("user.dir")).resolve(DB_NAME);
     }
 
     // ================= BANCO =================
@@ -44,18 +36,15 @@ public class AgentDatabaseInitializer {
             Files.createFile(dbPath);
         }
 
-        String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
-        try (Connection ignored = DriverManager.getConnection(url)) {
-            // garante criação
+        try (Connection ignored = DriverManager.getConnection(AgentDatabase.url())) {
+            // garante criação do banco
         }
     }
 
     // ================= ESTRUTURA =================
 
-    private void criarEstrutura(Path dbPath) throws Exception {
-        String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
-
-        try (Connection conn = DriverManager.getConnection(url);
+    private void criarEstrutura() throws Exception {
+        try (Connection conn = DriverManager.getConnection(AgentDatabase.url());
              Statement stmt = conn.createStatement()) {
 
             stmt.execute(SQL_AGENT_CONFIG);
@@ -68,10 +57,8 @@ public class AgentDatabaseInitializer {
 
     // ================= DEFAULTS =================
 
-    private void inserirDefaultsSeNecessario(Path dbPath) throws Exception {
-        String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
-
-        try (Connection conn = DriverManager.getConnection(url);
+    private void inserirDefaultsSeNecessario() throws Exception {
+        try (Connection conn = DriverManager.getConnection(AgentDatabase.url());
              Statement stmt = conn.createStatement()) {
 
             stmt.execute("""

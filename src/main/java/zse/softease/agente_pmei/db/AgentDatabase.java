@@ -9,10 +9,17 @@ public final class AgentDatabase {
 
     private AgentDatabase() {}
 
+    /**
+     * Retorna o caminho do banco SQLite na MESMA PASTA
+     * onde o JAR está sendo executado (user.dir).
+     */
     public static Path path() {
         return Paths.get(System.getProperty("user.dir")).resolve(DB_NAME);
     }
 
+    /**
+     * URL JDBC do SQLite
+     */
     public static String url() {
         return "jdbc:sqlite:" + path().toAbsolutePath();
     }

@@ -33,12 +33,22 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
         this.logService = logService;
     }
    
-    @PostConstruct
-    public void init() {
-        String baseUrl = configuracaoAgente.getApiBaseUrl();
-        this.impressaoApiClientBack =
-                new ImpressaoApiClientBack(baseUrl);
+   
+   // public void init() {
+      ///  String baseUrl = configuracaoAgente.getApiBaseUrl();
+       // this.impressaoApiClientBack =
+          //      new ImpressaoApiClientBack(baseUrl);
+    //}
+    
+    public void initSeguro() {
+        try {
+            String apiBaseUrl = configuracaoAgente.getApiBaseUrl();
+            // inicializa o que precisa
+        } catch (Exception e) {
+            System.out.println("[AGENTE] Config ainda não disponível. Inicialização adiada.");
+        }
     }
+
 
     @Override
     public void executarCiclo() {
