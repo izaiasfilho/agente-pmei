@@ -21,6 +21,7 @@ public class MotorImpressao {
             PrintService printer = detector.detectarImpressoraPadrao();
 
             DocFlavor flavor = DocFlavor.BYTE_ARRAY.AUTOSENSE;
+           // DocFlavor flavor = DocFlavor.BYTE_ARRAY.TEXT_PLAIN_HOST;
             DocPrintJob job = printer.createPrintJob();
             Doc doc = new SimpleDoc(data, flavor, null);
 
