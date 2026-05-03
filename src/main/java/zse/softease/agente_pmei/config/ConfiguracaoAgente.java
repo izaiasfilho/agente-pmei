@@ -13,6 +13,35 @@ public class ConfiguracaoAgente {
         this.configService = configService;
     }
 
+    public String getChaveAgente() {
+        return configService.get("chaveAgente");
+    }
+
+    public String getApiBaseUrl() {
+        return configService.get("apiBaseUrl");
+    }
+
+    public String getImpressoraFallback() {
+        return configService.get("impressoraFallback");
+    }
+
+    public Integer getLarguraPapelPadraoMm() {
+        return configService.getInt("larguraPapelPadraoMm", 80);
+    }
+
+    public boolean isUsarNomeImpressoraDoJob() {
+        return !"false".equals(configService.get("usarNomeImpressoraDoJob"));
+    }
+
+    public boolean isPermitirFallbackSistema() {
+        return "true".equals(configService.get("permitirFallbackSistema"));
+    }
+
+    public boolean isModoTecnicoHabilitado() {
+        return "true".equals(configService.get("modoTecnicoHabilitado"));
+    }
+
+    // Kept for migration compatibility — legacy agents may still have these values
     public Long getIdCaixa() {
         String v = configService.get("idCaixa");
         return v != null && !v.isBlank() ? Long.parseLong(v) : null;
@@ -20,13 +49,5 @@ public class ConfiguracaoAgente {
 
     public String getChaveAcesso() {
         return configService.get("chaveAcesso");
-    }
-
-    public String getApiBaseUrl() {
-        return configService.get("apiBaseUrl");
-    }
-
-    public Integer getIntervaloMs() {
-        return configService.getInt("intervaloMs", 10000);
     }
 }

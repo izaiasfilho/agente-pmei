@@ -1,26 +1,39 @@
 package zse.softease.agente_pmei.db;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
+import zse.softease.agente_pmei.service.ConfigServiceSQLite;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.util.Map;
 
 @Component
+@Order(1)
 public class AgentDatabaseInitializer implements ApplicationRunner {
+
+    private final ConfigServiceSQLite configService;
+
+    public AgentDatabaseInitializer(ConfigServiceSQLite configService) {
+        this.configService = configService;
+    }
 
     @Override
     public void run(ApplicationArguments args) {
         try {
             Path dbPath = AgentDatabase.path();
-
             criarBancoSeNaoExistir(dbPath);
             criarEstrutura();
+            migrarColunas();
             inserirDefaultsSeNecessario();
+            carregarBootstrap();
 
             System.out.println("[AGENTE] Banco SQLite pronto em: " + dbPath.toAbsolutePath());
 
@@ -29,19 +42,12 @@ public class AgentDatabaseInitializer implements ApplicationRunner {
         }
     }
 
-    // ================= BANCO =================
-
     private void criarBancoSeNaoExistir(Path dbPath) throws Exception {
         if (!Files.exists(dbPath)) {
             Files.createFile(dbPath);
         }
-
-        try (Connection ignored = DriverManager.getConnection(AgentDatabase.url())) {
-            // garante criação do banco
-        }
+        try (Connection ignored = DriverManager.getConnection(AgentDatabase.url())) {}
     }
-
-    // ================= ESTRUTURA =================
 
     private void criarEstrutura() throws Exception {
         try (Connection conn = DriverManager.getConnection(AgentDatabase.url());
@@ -55,7 +61,30 @@ public class AgentDatabaseInitializer implements ApplicationRunner {
         }
     }
 
-    // ================= DEFAULTS =================
+    private void migrarColunas() throws Exception {
+        // Add new columns to agent_estado for existing databases (SQLite doesn't support IF NOT EXISTS for ADD COLUMN)
+        String[] novasColunas = {
+            "ALTER TABLE agent_estado ADD COLUMN ciclos_sem_job INTEGER DEFAULT 0",
+            "ALTER TABLE agent_estado ADD COLUMN proximo_polling_ms INTEGER DEFAULT 3000",
+            "ALTER TABLE agent_estado ADD COLUMN proxima_consulta_em TEXT",
+            "ALTER TABLE agent_estado ADD COLUMN ultimo_job_id INTEGER",
+            "ALTER TABLE agent_estado ADD COLUMN ultimo_tipo_documento TEXT",
+            "ALTER TABLE agent_estado ADD COLUMN ultimo_terminal TEXT",
+            "ALTER TABLE agent_estado ADD COLUMN ultima_impressora_solicitada TEXT",
+            "ALTER TABLE agent_estado ADD COLUMN ultima_impressora_usada TEXT"
+        };
+
+        try (Connection conn = DriverManager.getConnection(AgentDatabase.url());
+             Statement stmt = conn.createStatement()) {
+            for (String sql : novasColunas) {
+                try {
+                    stmt.execute(sql);
+                } catch (Exception ignored) {
+                    // Column already exists — safe to ignore
+                }
+            }
+        }
+    }
 
     private void inserirDefaultsSeNecessario() throws Exception {
         try (Connection conn = DriverManager.getConnection(AgentDatabase.url());
@@ -73,15 +102,67 @@ public class AgentDatabaseInitializer implements ApplicationRunner {
 
             stmt.execute("""
                 INSERT OR IGNORE INTO agent_config (chave, valor) VALUES
-                ('apiBaseUrl', 'http://127.0.0.1:8080/posmei-api/api/posmei/impressao'),
-                ('idCaixa', ''),
-                ('chaveAcesso', ''),
-                ('intervaloMs', '100000');
+                ('apiBaseUrl', 'https://api.zseposmei.cloud/posmei-api/api/posmei/impressao'),
+                ('chaveAgente', ''),
+                ('impressoraFallback', ''),
+                ('larguraPapelPadraoMm', '80'),
+                ('usarNomeImpressoraDoJob', 'true'),
+                ('permitirFallbackSistema', 'false'),
+                ('modoTecnicoHabilitado', 'false'),
+                ('configInicializada', 'false');
             """);
+
+            // Migration: if old chaveAcesso exists and chaveAgente is empty, use it
+            migrarChaveAcesso(stmt);
         }
     }
 
-    // ================= SQL =================
+    private void migrarChaveAcesso(Statement stmt) throws Exception {
+        // If legacy chaveAcesso exists but new chaveAgente is empty, migrate
+        String velhaChave = configService.get("chaveAcesso");
+        String novaChave = configService.get("chaveAgente");
+
+        if (velhaChave != null && !velhaChave.isBlank()
+                && (novaChave == null || novaChave.isBlank())) {
+            stmt.execute("INSERT OR REPLACE INTO agent_config (chave, valor) VALUES ('chaveAgente', '" + velhaChave + "')");
+            System.out.println("[AGENTE] Migração: chaveAcesso → chaveAgente (compatibilidade)");
+        }
+    }
+
+    private void carregarBootstrap() {
+        Path bootstrapPath = Paths.get(System.getProperty("user.dir")).resolve("agent-bootstrap.json");
+
+        if (!Files.exists(bootstrapPath)) return;
+
+        String jaInicializado = configService.get("configInicializada");
+        if ("true".equals(jaInicializado)) return;
+
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            @SuppressWarnings("unchecked")
+            Map<String, String> bootstrap = mapper.readValue(bootstrapPath.toFile(), Map.class);
+
+            String apiBaseUrl = bootstrap.get("apiBaseUrl");
+            String chaveAgente = bootstrap.get("chaveAgente");
+
+            if (apiBaseUrl != null && !apiBaseUrl.isBlank()) {
+                configService.set("apiBaseUrl", apiBaseUrl);
+            }
+            if (chaveAgente != null && !chaveAgente.isBlank()) {
+                configService.set("chaveAgente", chaveAgente);
+            }
+
+            configService.set("configInicializada", "true");
+
+            // Rename to prevent reuse
+            Files.move(bootstrapPath, bootstrapPath.resolveSibling("agent-bootstrap.used.json"));
+
+            System.out.println("[AGENTE] Bootstrap carregado. Chave configurada.");
+
+        } catch (Exception e) {
+            System.err.println("[AGENTE] Erro ao carregar bootstrap: " + e.getMessage());
+        }
+    }
 
     private static final String SQL_AGENT_CONFIG = """
         CREATE TABLE IF NOT EXISTS agent_config (
@@ -97,7 +178,15 @@ public class AgentDatabaseInitializer implements ApplicationRunner {
             status TEXT NOT NULL,
             ultima_execucao DATETIME,
             ultima_mensagem TEXT,
-            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP
+            atualizado_em DATETIME DEFAULT CURRENT_TIMESTAMP,
+            ciclos_sem_job INTEGER DEFAULT 0,
+            proximo_polling_ms INTEGER DEFAULT 3000,
+            proxima_consulta_em TEXT,
+            ultimo_job_id INTEGER,
+            ultimo_tipo_documento TEXT,
+            ultimo_terminal TEXT,
+            ultima_impressora_solicitada TEXT,
+            ultima_impressora_usada TEXT
         );
     """;
 

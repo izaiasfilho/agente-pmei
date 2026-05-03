@@ -14,24 +14,31 @@ import org.springframework.stereotype.Component;
 @Component
 public class MotorImpressao {
 
-    private final DetectorImpressora detector = new DetectorImpressora();
+    private final PrinterResolver printerResolver;
 
-    public void printRawBytes(byte[] data, String jobName) {
+    public MotorImpressao(PrinterResolver printerResolver) {
+        this.printerResolver = printerResolver;
+    }
+
+    public String printRawBytes(byte[] data, PrintJobContext ctx) {
+        PrintService printer = printerResolver.resolver(ctx.nomeImpressoraSolicitada);
+        String nomeImpressoraUsada = printer.getName();
+
         try {
-            PrintService printer = detector.detectarImpressoraPadrao();
-
             DocFlavor flavor = DocFlavor.BYTE_ARRAY.AUTOSENSE;
-           // DocFlavor flavor = DocFlavor.BYTE_ARRAY.TEXT_PLAIN_HOST;
             DocPrintJob job = printer.createPrintJob();
             Doc doc = new SimpleDoc(data, flavor, null);
 
             HashPrintRequestAttributeSet attrs = new HashPrintRequestAttributeSet();
+            String jobName = "POSMEI-" + (ctx.tipoDocumento != null ? ctx.tipoDocumento : "JOB");
             attrs.add(new JobName(jobName, null));
 
             job.print(doc, attrs);
 
         } catch (PrintException e) {
-            throw new RuntimeException("Falha ao imprimir", e);
+            throw new RuntimeException("Falha ao imprimir na impressora '" + nomeImpressoraUsada + "'", e);
         }
+
+        return nomeImpressoraUsada;
     }
 }

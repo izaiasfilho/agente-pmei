@@ -1,8 +1,11 @@
 package zse.softease.agente_pmei.dto;
 
 public record AgentConfigDTO(
-        Long idCaixa,
-        String chaveAcesso,
+        String chaveAgente,
         String apiBaseUrl,
-        Integer intervaloMs
+        String impressoraFallback,
+        Integer larguraPapelPadraoMm,
+        Boolean usarNomeImpressoraDoJob,
+        Boolean permitirFallbackSistema,
+        Boolean modoTecnicoHabilitado
 ) {}

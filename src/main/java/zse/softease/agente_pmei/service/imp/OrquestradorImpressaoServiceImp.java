@@ -8,10 +8,11 @@ import zse.softease.agente_pmei.client.ImpressaoApiClientBack;
 import zse.softease.agente_pmei.config.ConfiguracaoAgente;
 import zse.softease.agente_pmei.dto.ProximoJobResponse;
 import zse.softease.agente_pmei.printer.MotorImpressao;
+import zse.softease.agente_pmei.printer.PrintJobContext;
+import zse.softease.agente_pmei.service.AgentStateService;
 import zse.softease.agente_pmei.service.LogService;
 import zse.softease.agente_pmei.service.OrquestradorImpressaoService;
 
-/*############## ORQUESTRA A CONVERSA ENTRE BACK E IMPRESSORA*/
 @Service
 public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoService {
 
@@ -19,87 +20,101 @@ public class OrquestradorImpressaoServiceImp implements OrquestradorImpressaoSer
     private final MotorImpressao motorImpressao;
     private final ConfiguracaoAgente configuracaoAgente;
     private final LogService logService;
+    private final AgentStateService agentStateService;
 
     public OrquestradorImpressaoServiceImp(
             ConfiguracaoAgente configuracaoAgente,
             MotorImpressao motorImpressao,
             LogService logService,
-            ImpressaoApiClientBack impressaoApiClientBack
+            ImpressaoApiClientBack impressaoApiClientBack,
+            AgentStateService agentStateService
     ) {
         this.configuracaoAgente = configuracaoAgente;
         this.motorImpressao = motorImpressao;
         this.logService = logService;
         this.impressaoApiClientBack = impressaoApiClientBack;
+        this.agentStateService = agentStateService;
     }
 
     @Override
-    public void executarCiclo() {
+    public Integer executarCiclo() {
 
         try {
+            String chaveAgente = configuracaoAgente.getChaveAgente();
 
-            // 🔒 Validação de configuração mínima
-            if (configuracaoAgente.getIdCaixa() == null ||
-                configuracaoAgente.getChaveAcesso() == null ||
-                configuracaoAgente.getChaveAcesso().isBlank() ||
-                configuracaoAgente.getApiBaseUrl() == null ||
-                configuracaoAgente.getApiBaseUrl().isBlank()) {
-
-                logService.info("Configuração incompleta. Aguardando preenchimento...");
-                return;
+            if (chaveAgente == null || chaveAgente.isBlank()) {
+                logService.info("Agente não configurado (chaveAgente ausente). Status: CONFIGURACAO_PENDENTE");
+                agentStateService.marcarErro("CONFIGURACAO_PENDENTE — Baixe o agente pelo sistema para ativar.");
+                return null;
             }
 
-            // 🔎 Busca próximo job
-            ProximoJobResponse job =
-                    impressaoApiClientBack.buscarProximoJob(
-                            configuracaoAgente.getIdCaixa(),
-                            configuracaoAgente.getChaveAcesso()
-                    );
+            if (configuracaoAgente.getApiBaseUrl() == null || configuracaoAgente.getApiBaseUrl().isBlank()) {
+                logService.info("apiBaseUrl não configurada. Aguardando...");
+                return null;
+            }
+
+            ProximoJobResponse job = impressaoApiClientBack.buscarProximoJob();
 
             if (job == null) {
-                return; // nenhum job disponível
+                return null; // no job available
             }
 
-            logService.info("Job recebido: " + job.idJob);
+            logService.info("Job recebido: #" + job.idJob
+                    + " | terminal=" + job.terminalNome
+                    + " | tipo=" + job.tipoDocumento
+                    + " | impressora=" + job.nomeImpressora);
+
+            PrintJobContext ctx = new PrintJobContext();
+            ctx.idJob = job.idJob;
+            ctx.tipoDocumento = job.tipoDocumento;
+            ctx.terminalNome = job.terminalNome;
+            ctx.nomeImpressoraSolicitada = configuracaoAgente.isUsarNomeImpressoraDoJob()
+                    ? job.nomeImpressora : null;
+            ctx.larguraPapelMm = job.larguraPapelMm != null
+                    ? job.larguraPapelMm : configuracaoAgente.getLarguraPapelPadraoMm();
+
+            String nomeImpressoraUsada = null;
 
             try {
-
-                // 📦 Decodifica Base64
                 byte[] dados = Base64.getDecoder().decode(job.conteudo);
 
-                // 🖨️ Envia para impressora
-                motorImpressao.printRawBytes(
-                        dados,
-                        "POSMEI-" + job.tipoDocumento
+                nomeImpressoraUsada = motorImpressao.printRawBytes(dados, ctx);
+
+                impressaoApiClientBack.confirmarJob(job.idJob, "OK", null, nomeImpressoraUsada);
+
+                logService.info("Job #" + job.idJob + " impresso com sucesso na impressora: " + nomeImpressoraUsada);
+
+                agentStateService.atualizarUltimoJob(
+                        job.idJob,
+                        job.tipoDocumento,
+                        job.terminalNome,
+                        job.nomeImpressora,
+                        nomeImpressoraUsada
                 );
-
-                // ✅ Confirma sucesso
-                impressaoApiClientBack.confirmarJob(job.idJob, "OK", null);
-
-                logService.info("Job impresso com sucesso: " + job.idJob);
 
             } catch (Exception erroImpressao) {
+                String msgErro = erroImpressao.getMessage();
 
-                logService.erro(
-                        "Erro ao imprimir job " + job.idJob,
-                        erroImpressao.getMessage()
-                );
+                logService.erro("Erro ao imprimir job #" + job.idJob
+                        + " | impressora=" + ctx.nomeImpressoraSolicitada, msgErro);
 
-                // ❌ Confirma erro ao backend
-                impressaoApiClientBack.confirmarJob(
+                impressaoApiClientBack.confirmarJob(job.idJob, "ERRO", msgErro, nomeImpressoraUsada);
+
+                agentStateService.atualizarUltimoJob(
                         job.idJob,
-                        "ERRO",
-                        erroImpressao.getMessage()
+                        job.tipoDocumento,
+                        job.terminalNome,
+                        job.nomeImpressora,
+                        null
                 );
             }
 
+            return job.proximoPollingMs != null ? job.proximoPollingMs : 0;
+
         } catch (Exception erroGeral) {
-
-            logService.erro(
-                    "Erro no ciclo do agente",
-                    erroGeral.getMessage()
-            );
-
+            logService.erro("Erro no ciclo do agente", erroGeral.getMessage());
             System.err.println("[AGENTE] erro polling: " + erroGeral.getMessage());
+            throw new RuntimeException(erroGeral.getMessage(), erroGeral);
         }
     }
 }

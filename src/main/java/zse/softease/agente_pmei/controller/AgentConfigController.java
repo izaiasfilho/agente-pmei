@@ -28,42 +28,46 @@ public class AgentConfigController {
         this.testPrintService = testPrintService;
     }
 
-    // =========================
-    // GET - carregar config
-    // =========================
     @GetMapping
     public AgentConfigDTO getConfig() {
         return new AgentConfigDTO(
-                configuracaoAgente.getIdCaixa(),
-                configuracaoAgente.getChaveAcesso(),
+                configuracaoAgente.getChaveAgente(),
                 configuracaoAgente.getApiBaseUrl(),
-                configuracaoAgente.getIntervaloMs()
+                configuracaoAgente.getImpressoraFallback(),
+                configuracaoAgente.getLarguraPapelPadraoMm(),
+                configuracaoAgente.isUsarNomeImpressoraDoJob(),
+                configuracaoAgente.isPermitirFallbackSistema(),
+                configuracaoAgente.isModoTecnicoHabilitado()
         );
     }
 
-    // =========================
-    // POST/PUT - salvar config
-    // =========================
     @PostMapping
     public void salvar(@RequestBody AgentConfigDTO dto) {
-
-        if (dto.idCaixa() != null)
-            configService.set("idCaixa", dto.idCaixa().toString());
-
-        if (dto.chaveAcesso() != null)
-            configService.set("chaveAcesso", dto.chaveAcesso());
+        if (dto.chaveAgente() != null)
+            configService.set("chaveAgente", dto.chaveAgente());
 
         if (dto.apiBaseUrl() != null)
             configService.set("apiBaseUrl", dto.apiBaseUrl());
 
-        if (dto.intervaloMs() != null)
-            configService.set("intervaloMs", dto.intervaloMs().toString());
+        if (dto.impressoraFallback() != null)
+            configService.set("impressoraFallback", dto.impressoraFallback());
+
+        if (dto.larguraPapelPadraoMm() != null)
+            configService.set("larguraPapelPadraoMm", dto.larguraPapelPadraoMm().toString());
+
+        if (dto.usarNomeImpressoraDoJob() != null)
+            configService.set("usarNomeImpressoraDoJob", dto.usarNomeImpressoraDoJob().toString());
+
+        if (dto.permitirFallbackSistema() != null)
+            configService.set("permitirFallbackSistema", dto.permitirFallbackSistema().toString());
+
+        if (dto.modoTecnicoHabilitado() != null)
+            configService.set("modoTecnicoHabilitado", dto.modoTecnicoHabilitado().toString());
     }
-    
+
     @PostMapping("/test-connection")
     public String testarConexao() {
         try {
-            // chamada simples ao back (ex: ping / health)
             return "Conexão com o back OK";
         } catch (Exception e) {
             return "Erro ao conectar no back: " + e.getMessage();
@@ -72,21 +76,11 @@ public class AgentConfigController {
 
     @PostMapping("/test-print")
     public TestPrintResponseDTO testarImpressao() {
-
         try {
             testPrintService.testarImpressao();
-            return new TestPrintResponseDTO(
-                    true,
-                    "Teste de impressão enviado com sucesso"
-            );
-
+            return new TestPrintResponseDTO(true, "Teste de impressão enviado com sucesso");
         } catch (Exception e) {
-            return new TestPrintResponseDTO(
-                    false,
-                    "Erro ao testar impressão: " + e.getMessage()
-            );
+            return new TestPrintResponseDTO(false, "Erro ao testar impressão: " + e.getMessage());
         }
     }
-
-
 }
