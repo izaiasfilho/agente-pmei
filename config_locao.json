@@ -1,0 +1,6 @@
+{
+  "apiBaseUrl": "http://localhost:8080/posmei-api/api/posmei/impressao",
+  "idCaixa": 1,
+  "chaveAcesso": "A3F9975D-4750-4518-A48C-0535A02668CC",
+  "intervaloMs": 5000
+}

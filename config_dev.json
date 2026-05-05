@@ -1,0 +1,6 @@
+{
+ "apiBaseUrl": "https://api-dev.zseposmei.cloud/posmei-api/api/posmei/impressao",
+  "idCaixa": 1,
+  "chaveAcesso": "CHAVE-DEV-DO-CAIXA-1",
+  "intervaloMs": 1000
+}
